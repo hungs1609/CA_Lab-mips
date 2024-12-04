@@ -1,0 +1,143 @@
+.eqv HEADING 0xffff8010       #Integer : An angle between 0 and 359
+.eqv MOVING 0xffff8050        #Boolean : whether or not to move 
+.eqv LEAVETRACK 0xffff8020    #Boolean ( 0 or not 0 ) 
+.eqv WHEREX 0xffff8030        #current x-location of Marsbot 
+.eqv WHEREY 0xffff8040        #current y-location of Marsbot 
+
+.eqv IN_ADDRESS_HEXA_KEYBOARD 0xFFFF0012
+.eqv OUT_ADDRESS_HEXA_KEYBOARD 0xFFFF0014
+
+
+.data 
+#script- DCE , number 0 
+script1:       .word  135,3000,0, 180, 6000, 1, 60, 3000, 1, 0, 3000, 1, 300, 3000, 1, 90, 6000, 0, 270, 2600, 1, 180, 6000, 1, 90, 2600, 1, 90, 3500, 0, 270, 2600, 1, 0, 3000, 1,90, 3000, 1, 270, 3000, 0, 0, 3000, 1, 90, 3000, 1
+script1_len :  .word 17
+#script-0531 => numpad 4
+script2:      .word   	135, 2000, 0, 180, 4000, 1, 90, 2000, 1, 0, 4000, 1, 270, 2000, 1, 90, 3000, 0, 180, 2000, 1, 90, 2000, 1, 180, 2000, 1, 270, 2000, 1, 0, 4000, 0,90, 2000, 1,90, 1000, 0, 90, 2000, 1, 180, 2000, 1, 270, 2000, 1, 90, 2000, 0, 180, 2000, 1, 270, 2000, 1, 90, 4000 , 0, 0, 4000, 1
+script2_len:  .word 21
+# postscript-2020 => numpad 8
+script3: .word  135, 2000, 0, 90, 2000, 1, 180, 2000, 1, 270, 2000, 1, 180, 2000, 1, 90, 2000, 1, 90, 1000, 0, 90, 2000, 1, 0, 4000, 1, 270, 2000, 1, 180, 4000, 1, 90, 5000, 0, 270, 2000, 1, 0, 2000, 1, 90, 2000, 1, 0, 2000, 1, 270, 2000, 1, 90, 3000, 0,90, 2000, 1, 180, 4000, 1, 270, 2000, 1, 0 , 4000, 1 
+script3_len: .word 22
+
+.text
+main:
+       li        $t1, IN_ADDRESS_HEXA_KEYBOARD 
+       li        $t2, OUT_ADDRESS_HEXA_KEYBOARD
+
+
+POLLING:
+        li        $t3, 0x1        # check row1
+        sb        $t3, 0($t1)      # Must reasign axpected row
+        lb        $a0, 0($t2)       # read scan code of key bytton 
+        bne       $a0, 0x11, NUMBER_4 # $a0 != 0x11 => NUMBER_4
+        la        $s0, script1      # gan $s0 = value script1
+        la        $s1, script1_len
+        lw        $s1, 0($s1)
+        j         START            # thuc thi ham START 
+
+NUMBER_4:
+        li        $t3, 0x2    # check row2
+        sb        $t3, 0($t1)     # Must reasign axpected row
+        lb        $a0, 0($t2)    # read scan code of key bytton 
+        bne       $a0, 0x12, NUMBER_8 # $a0 != 0x11 => NUMBER 8
+        la        $s0, script2    # gan $s0 = value script2
+        la        $s1, script2_len
+        lw        $s1, 0($s1)
+        j         START # thuc thi ham START 
+        nop
+NUMBER_8:
+        li       $t3, 0x4    # check row3
+        sb       $t3, 0($t1)    # Must reasign axpected row
+        lb       $a0, 0($t2)   # read scan code of key bytton 
+        bne      $a0, 0x14, RETURN   # $a0 != 0x11 => return
+        la       $s0, script3     # gan $s0 = value script3
+        la       $s1, script3_len
+        lw       $s1, 0($s1)
+        j        START         # thuc thi ham START 
+        nop
+RETURN: j        POLLING       # $a0 != 0,4,8 => polling 
+        nop
+
+START:  
+        addi    $t9, $zero, 0 # j =0 dem so luong duong cat
+        addi    $t0, $zero, 0 # i =0 vi tri 
+	
+FOR:	
+        add	$t1, $t0, $s0  #$t1 gia tri phan tu 
+	lw	$t2, 0($t1)     #rotate
+	lw	$t3, 4($t1)    #time
+	lw	$t4, 8($t1)    #track
+	
+	add	$a0, $zero, $t4  #$a= $zero + $s4
+	jal	TRACK
+	nop
+	
+	add	$a0, $zero, $t2 
+	jal 	ROTATE
+	nop
+	
+	jal	GO
+	nop
+	
+SLEEP:	addi	$v0, $zero, 32  
+	add	$a0, $zero, $t3
+	syscall
+
+	
+IF_TRACK:
+	beq	$t4, $zero, END_IF_TRACK
+	jal	UNTRACK
+	nop
+	
+END_IF_TRACK:
+	addi	$t0, $t0, 12
+	addi	$t9, $t9, 1
+	slt	$t5, $t9, $s1
+	beq	$t5, $zero, END_FOR
+	j	FOR
+	nop 
+END_FOR:
+	j	END
+	nop
+
+           
+GO: 
+ 	li      $at, MOVING  # change MOVING port
+ 	addi    $k0, $zero, 1  # to logic 1
+ 	sb      $k0, 0($at)  # to start running
+ 	nop
+ 	jr      $ra
+ 	nop
+
+STOP: 
+	li      $at, MOVING # change MOVING port to 0
+ 	sb      $zero, 0($at) # to stop
+ 	nop
+ 	jr      $ra
+ 	nop
+
+TRACK: 
+	li     $at, LEAVETRACK # change LEAVETRACK port
+	sb     $a0, 0($at)    # to start tracking
+	nop 
+ 	jr     $ra
+ 	nop
+
+UNTRACK:
+	li     $at, LEAVETRACK # change LEAVETRACK port to 0
+ 	sb     $zero, 0($at) # to stop drawing tail
+ 	nop
+ 	jr     $ra
+ 	nop
+
+ROTATE: 
+	li    $at, HEADING # change HEADING port
+ 	sw    $a0, 0($at) # to rotate robot
+ 	nop
+ 	jr $ra
+ 	nop
+END:
+	jal    STOP
+	li     $v0, 10
+	syscall
+	nop
